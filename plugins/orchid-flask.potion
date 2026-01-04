@@ -1,0 +1,24 @@
+name: orchid-flask
+version: "0.1.0"
+description: "Potions plugin for managing the alchemists-orchid NeoVim colorscheme with customizable preferences"
+author: "Rynaro"
+repository: "https://github.com/Rynaro/orchid-flask"
+license: "MIT"
+tags:
+  - nvim
+  - colorscheme
+  - theme
+  - neovim
+
+# Minimum Potions version required
+min_potions_version: "2.6.0"
+
+# Plugin dependencies
+dependencies: []
+
+# Potionfile path (default is Potionfile)
+potionfile_path: "Potionfile"
+
+# Checksum for plugin integrity verification
+checksum: "sha256:9bf1a76a42b6c8e23a9084db734f8c6be88affe4c36c245012b261f09be9a458"
+
