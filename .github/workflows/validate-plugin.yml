@@ -1,0 +1,78 @@
+name: Validate Plugin Manifest
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/**/*.potion'
+      - 'plugins/**/*.yaml'
+      - 'plugins/**/*.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+    
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+    
+      - name: Install dependencies
+        run: |
+          pip install jsonschema pyyaml
+    
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+    
+      - name: Get changed manifest files
+        id: changed-files
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          ./scripts/get-changed-files.sh "${{ github.event_name }}" "${{ github.base_ref }}" changed_files.txt
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat changed_files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+    
+      - name: Validate manifest files
+        id: validate
+        run: |
+          set +e
+          ./scripts/validate-manifests.sh changed_files.txt error_count.txt || true
+          ERROR_COUNT=$(grep "^error_count=" error_count.txt 2>/dev/null | cut -d'=' -f2 || echo "0")
+          echo "error_count=$ERROR_COUNT" >> $GITHUB_OUTPUT
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            exit 1
+          fi
+    
+      - name: Validate dependencies
+        run: |
+          python3 scripts/dependency-resolver.py plugins/
+          if [ $? -ne 0 ]; then
+            echo "::error::Dependency validation failed"
+            exit 1
+          fi
+    
+      - name: Comment PR
+        if: github.event_name == 'pull_request' && steps.validate.outputs.error_count == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ All manifest validations passed!'
+            })

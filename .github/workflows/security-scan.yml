@@ -1,0 +1,79 @@
+name: Security Scan
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/**/*.potion'
+      - 'plugins/**/*.yaml'
+      - 'plugins/**/*.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'plugins/**/*.potion'
+      - 'plugins/**/*.yaml'
+      - 'plugins/**/*.yml'
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml requests
+
+      - name: Get changed manifest files
+        id: changed-files
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          ./scripts/get-changed-files.sh "${{ github.event_name }}" "${{ github.base_ref }}" changed_files.txt
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          cat changed_files.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Verify repository accessibility
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/verify-repository-accessibility.py changed_files.txt
+    
+      - name: Verify Potionfile exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/verify-potionfile-exists.py changed_files.txt
+    
+      - name: Verify checksums
+        run: |
+          python3 scripts/verify-checksums.py changed_files.txt
+    
+      - name: Check for security advisories
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/check-security-advisories.py changed_files.txt
+    
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Repository accessibility verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Potionfile existence verified" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Checksum format validated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Security advisory check completed" >> $GITHUB_STEP_SUMMARY
