@@ -1,0 +1,7 @@
+# Python dependencies for Potions Plugin Registry scripts
+
+# Core dependencies
+jsonschema>=4.0.0  # JSON schema validation
+pyyaml>=6.0        # YAML parsing
+requests>=2.28.0   # HTTP requests for API calls
+
