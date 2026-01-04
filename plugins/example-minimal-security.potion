@@ -1,0 +1,17 @@
+# Example: Minimal Plugin with Security Features
+# This demonstrates a minimal plugin with security checksum
+
+name: example-minimal-security
+version: "1.0.0"
+description: "A minimal example plugin with security features like checksum verification"
+author: "example-secure"
+repository: "https://github.com/example/example-secure-plugin"
+license: "MIT"
+tags: ["example", "security"]
+
+# Security checksum (SHA256)
+checksum: "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+
+# Note: The checksum should match the actual plugin release
+# Generate with: sha256sum <plugin-file> | awk '{print "sha256:"$1}'
+

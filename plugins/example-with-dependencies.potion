@@ -1,0 +1,29 @@
+# Example: Plugin with Dependencies
+# This demonstrates how to specify plugin dependencies with version constraints
+
+name: example-with-dependencies
+version: "1.5.0"
+description: "An example plugin that depends on other plugins, demonstrating dependency management"
+author: "example-dev"
+repository: "https://github.com/example/example-deps-plugin"
+license: "Apache-2.0"
+tags: ["example", "dependencies"]
+
+# Dependencies with different version constraints
+dependencies:
+  # Exact version
+  - name: example-basic
+    version: "=1.0.0"
+  
+  # Greater than or equal
+  - name: utility-plugin
+    version: ">=2.0.0"
+  
+  # Pessimistic operator (compatible within minor version)
+  - name: base-plugin
+    version: "~>1.2.0"
+  
+  # Caret operator (compatible within major version)
+  - name: framework-plugin
+    version: "^3.0.0"
+

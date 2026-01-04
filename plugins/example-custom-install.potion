@@ -1,0 +1,27 @@
+# Example: Custom Installation Configuration
+# This demonstrates different installation types and paths
+
+name: example-custom-install
+version: "1.2.0"
+description: "An example plugin with custom installation configuration, showing different install types and paths"
+author: "example-user"
+repository: "https://github.com/example/example-custom-install"
+license: "GPL-3.0"
+tags: ["example", "installation"]
+
+# Custom installation from a subdirectory
+install:
+  type: "git"
+  path: "/plugin-code"  # Install from subdirectory
+  branch: "v1.2.0"     # Use specific tag/branch
+
+# Alternative: Install from archive
+# install:
+#   type: "archive"
+#   path: "/releases/v1.2.0.tar.gz"
+
+# Alternative: Install via script
+# install:
+#   type: "script"
+#   path: "/install.sh"
+

@@ -1,0 +1,187 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Rynaro/potions-shelf/schema/potion-manifest.schema.json",
+  "title": "Potions Plugin Manifest",
+  "description": "Schema for Potions plugin manifest files (.potion format)",
+  "type": "object",
+  "required": [
+    "name",
+    "version",
+    "description",
+    "author",
+    "repository"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Plugin name (must be unique, lowercase, alphanumeric with hyphens)",
+      "pattern": "^[a-z0-9-]+$",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "version": {
+      "type": "string",
+      "description": "Plugin version (semantic versioning)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Short description of the plugin",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name or GitHub username",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "repository": {
+      "type": "string",
+      "description": "GitHub repository URL",
+      "pattern": "^https://github\\.com/[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+(/)?$"
+    },
+    "homepage": {
+      "type": "string",
+      "description": "Plugin homepage URL",
+      "format": "uri"
+    },
+    "license": {
+      "type": "string",
+      "description": "License identifier (e.g., MIT, Apache-2.0, GPL-3.0)",
+      "enum": [
+        "MIT",
+        "Apache-2.0",
+        "GPL-2.0",
+        "GPL-3.0",
+        "LGPL-2.1",
+        "LGPL-3.0",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "ISC",
+        "MPL-2.0",
+        "Unlicense",
+        "CC0-1.0",
+        "Other"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Categories/tags for the plugin",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "minItems": 0,
+      "maxItems": 10,
+      "uniqueItems": true
+    },
+    "potionfile_path": {
+      "type": "string",
+      "description": "Path to Potionfile within the repository",
+      "default": "Potionfile",
+      "pattern": "^[^/].*"
+    },
+    "min_potions_version": {
+      "type": "string",
+      "description": "Minimum required Potions version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "max_potions_version": {
+      "type": "string",
+      "description": "Maximum supported Potions version",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "checksum": {
+      "type": "string",
+      "description": "SHA256 checksum of the plugin (format: sha256:hexdigest)",
+      "pattern": "^sha256:[a-fA-F0-9]{64}$"
+    },
+    "signature": {
+      "type": "string",
+      "description": "GPG signature (optional, format: gpg:base64)",
+      "pattern": "^gpg:"
+    },
+    "verified": {
+      "type": "boolean",
+      "description": "Whether the plugin has been verified by maintainers",
+      "default": false
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Plugin dependencies",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dependency plugin name",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "version": {
+            "type": "string",
+            "description": "Version constraint (e.g., >=1.0.0, ~>1.2.0, =2.0.0)",
+            "pattern": "^(>=|<=|>|<|~>|=|\\^)\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 0
+    },
+    "install": {
+      "type": "object",
+      "description": "Installation configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Installation type",
+          "enum": ["git", "archive", "script"],
+          "default": "git"
+        },
+        "path": {
+          "type": "string",
+          "description": "Path within repository",
+          "default": "/",
+          "pattern": "^/"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Git branch or tag to use (for git type)",
+          "default": "main"
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Lifecycle hooks",
+      "properties": {
+        "pre_install": {
+          "type": "string",
+          "description": "Script path for pre-installation hook",
+          "pattern": "^[^/].*"
+        },
+        "post_install": {
+          "type": "string",
+          "description": "Script path for post-installation hook",
+          "pattern": "^[^/].*"
+        },
+        "pre_uninstall": {
+          "type": "string",
+          "description": "Script path for pre-uninstallation hook",
+          "pattern": "^[^/].*"
+        },
+        "post_uninstall": {
+          "type": "string",
+          "description": "Script path for post-uninstallation hook",
+          "pattern": "^[^/].*"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
+

@@ -1,0 +1,25 @@
+# Example: Plugin with Lifecycle Hooks
+# This demonstrates how to use pre/post install/uninstall hooks
+
+name: example-with-hooks
+version: "1.0.0"
+description: "An example plugin demonstrating lifecycle hooks for installation and uninstallation processes"
+author: "example-hooks"
+repository: "https://github.com/example/example-hooks-plugin"
+license: "MIT"
+tags: ["example", "hooks", "lifecycle"]
+
+# Lifecycle hooks
+hooks:
+  # Run before installation (e.g., check prerequisites)
+  pre_install: "scripts/check-requirements.sh"
+  
+  # Run after installation (e.g., setup configuration)
+  post_install: "scripts/setup-config.sh"
+  
+  # Run before uninstallation (e.g., backup data)
+  pre_uninstall: "scripts/backup-data.sh"
+  
+  # Run after uninstallation (e.g., cleanup)
+  post_uninstall: "scripts/cleanup.sh"
+
