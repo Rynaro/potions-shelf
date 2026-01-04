@@ -1,0 +1,8 @@
+name: potions-plugin-hello-world
+version: "1.0.0"
+description: "A minimal hello world plugin for Potions registry integrity checks"
+author: "Rynaro"
+repository: "https://github.com/Rynaro/potions-plugin-hello-world"
+license: "MIT"
+tags: ["example", "test", "integrity-check"]
+
