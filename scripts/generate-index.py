@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
+from collections import defaultdict
 import yaml
 
 
