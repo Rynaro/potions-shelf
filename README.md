@@ -1,169 +1,48 @@
-# Potions Plugin Registry
+# Potions Shelf
 
-A reliable, secure, and auditable plugin registry for the [Potions](https://github.com/Rynaro/potions) system, hosted entirely on GitHub.
+Potions Shelf is a public catalog for [Potions](https://github.com/Rynaro/potions) plugins. Anyone can write a plugin, share it from a GitHub repository, or propose it for the catalog. Shelf maintainers review what appears in search. You decide which code runs on your machine.
 
-## Overview
+## Use a plugin
 
-The Potions Plugin Registry provides a centralized, open-source registry for Potions plugins. All plugins are defined using manifest files (`.potion` format) and validated through automated GitHub Actions workflows.
+If someone shares a GitHub repository with you, you can install it directly, including from your own fork. Replace `OWNER/REPO` and the tag with the publisher’s details.
 
-### Core Values
-
-- **Security**: Comprehensive automated security checks for all plugins
-- **Reliability**: 100% automated validation with zero manual steps
-- **Easy to Use**: Simple manifest format, clear documentation
-- **Auditability**: All operations visible in GitHub, no hidden processes
-
-## Features
-
-- ✅ Manifest-based plugin definitions (YAML format)
-- ✅ Automated validation and security scanning
-- ✅ Dependency resolution and validation
-- ✅ Searchable plugin index
-- ✅ GitHub-native (no external services)
-- ✅ Comprehensive security checks
-
-## Registry Structure
-
-```
-potions-shelf/
-├── plugins/              # Plugin manifest files
-├── index.json            # Generated plugin index
-├── schema/               # JSON schema for validation
-└── scripts/              # Validation and generation scripts
+```sh
+potions plugin install OWNER/REPO@v1.2.3
 ```
 
-## Quick Start
+For a community plugin, Potions displays the resolved commit for approval. Review that revision before accepting. Its hooks and shell configuration run with your account permissions. A maintainer can move a tag, so check the commit again when updating.
 
-### For Plugin Users
+Open **Plugins** in Potions Desk or run `potions plugin` to manage what you have installed. To discover catalog entries, run `potions plugin search shell`, then use `potions plugin info NAME` and `potions plugin install NAME` with a name from the results. The catalog currently has no active entries. Two older plugins need upstream changes before they can be listed again. [Pending entries and restoration steps](pending/README.md)
 
-The Potions CLI will automatically use this registry to discover and install plugins. No additional setup required.
+## Build a plugin locally
 
-### For Plugin Developers
+Start in the directory where you keep your projects. This example adds one command to the generated shell configuration.
 
-1. **Create a manifest file** in `plugins/`:
-   ```yaml
-   name: my-plugin
-   version: "1.0.0"
-   description: "A useful plugin"
-   author: "yourname"
-   repository: "https://github.com/yourname/my-plugin"
-   ```
-
-2. **Validate locally**:
-   ```bash
-   ./scripts/validate-manifest.sh plugins/my-plugin.potion
-   ```
-
-3. **Submit a Pull Request**
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## Manifest Format
-
-Plugin manifests use YAML format with the following structure:
-
-```yaml
-name: plugin-name
-version: "1.2.3"
-description: "Plugin description"
-author: "Author Name"
-repository: "https://github.com/user/repo"
-license: "MIT"
-tags: ["category1", "category2"]
-
-# Optional fields
-homepage: "https://plugin-website.com"
-dependencies:
-  - name: other-plugin
-    version: ">=1.0.0"
-checksum: "sha256:abc123..."
+```sh
+potions plugin create hello
+printf '%s\n' 'alias potions-hello="echo Hello from Potions"' >> ./hello/config/init.zsh
+potions plugin validate ./hello
+potions plugin install ./hello
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete format reference.
+Open a new shell and run `potions-hello`. Local installs link to your project, so you can edit the file and try again in another shell. A shell-only plugin needs the manifest and `config/init.zsh`. When you want to share it, publish the contents of `hello/` at the root of a public GitHub repository. People can install it directly at that point. [Potions plugin authoring guide](https://github.com/Rynaro/potions/blob/main/plugins/CREATING_PLUGINS.md)
 
-## Validation
+## List it on the Shelf
 
-All plugin manifests are automatically validated on PR submission:
+1. Fork this repository and clone your fork next to your plugin checkout, so that `potions-shelf/` and `hello/` are siblings.
+2. From the root of your Shelf fork, run the commands below. Replace `OWNER` with the plugin’s GitHub owner. Include the tag only if you have published it. Omitting it selects the default branch.
+3. Commit the generated `plugins/hello.potion` entry to a branch in your fork and open a pull request against this repository’s `main` branch. The Shelf generates the search index after merge.
 
-- ✅ Schema validation (JSON Schema)
-- ✅ Format validation (name, version, URLs)
-- ✅ Repository verification
-- ✅ Potionfile existence check
-- ✅ Dependency resolution
-- ✅ Security scanning
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python scripts/create-entry.py ../hello OWNER/hello@v1.2.3
+./scripts/validate-manifest.sh plugins/hello.potion
+```
 
-## Security
+The helper copies the metadata from your plugin. CI checks the entry against the public repository, reads the plugin manifest at the selected commit, and compares the name and version. It inspects files without executing the plugin. Maintainers review the proposed entry, the source, and the results. [Contribution guide](CONTRIBUTING.md)
 
-The registry performs comprehensive security checks:
+## Take part in review
 
-1. **Repository Verification**: Ensures repositories exist and are accessible
-2. **Checksum Validation**: Verifies plugin integrity
-3. **Dependency Validation**: Checks for circular dependencies and version conflicts
-4. **Security Scanning**: Checks for known vulnerabilities
-
-## Index
-
-The registry maintains an automatically-generated `index.json` file that provides:
-
-- Complete plugin metadata
-- Searchable categories
-- Dependency information
-- Version information
-
-The index is updated automatically when plugins are added or modified.
-
-## Workflows
-
-### Validate Plugin
-Runs on PRs that modify plugin manifests:
-- Validates schema and format
-- Checks dependencies
-- Verifies repository accessibility
-
-### Security Scan
-Runs on PRs and pushes to main:
-- Repository verification
-- Potionfile checks
-- Checksum validation
-- Security advisory checks
-
-### Generate Index
-Runs on pushes to main:
-- Generates `index.json` from all manifests
-- Commits and pushes updated index
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- How to submit a plugin
-- Manifest format reference
-- Validation requirements
-- Best practices
-
-## Documentation
-
-- **[AGENTS.md](AGENTS.md)**: Comprehensive guide for AI tools and developers
-- **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution guidelines and manifest format
-- **[Schema](schema/potion-manifest.schema.json)**: JSON schema for manifests
-
-## Inspiration
-
-This registry is inspired by:
-
-- [Homebrew](https://github.com/Homebrew/homebrew-core) - Formula-based package management
-- [RubyGems](https://rubygems.org/) - Gem specification and dependency resolution
-
-## License
-
-This registry is open source. Individual plugins maintain their own licenses as specified in their manifests.
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/Rynaro/potions-shelf/issues)
-- **Potions Project**: [https://github.com/Rynaro/potions](https://github.com/Rynaro/potions)
-
-## Status
-
-🚧 **Under Development** - The registry is actively being developed. Check back soon for updates!
-
+Anyone can comment on an open submission. If you tried a plugin, include the operating system, Potions version, and plugin revision you tested. Report missing or incorrect catalog information on the Shelf. For a bug in the plugin’s behavior, use the plugin repository’s issue tracker. [Open submissions](https://github.com/Rynaro/potions-shelf/pulls) · [Shelf issues](https://github.com/Rynaro/potions-shelf/issues)

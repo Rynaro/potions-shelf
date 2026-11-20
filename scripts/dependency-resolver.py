@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Set, Optional, Tuple
 from collections import defaultdict, deque
-import yaml
+from manifest_validation import load_manifest, validate_manifest
 
 
 class VersionConstraint:
@@ -83,21 +83,32 @@ class DependencyResolver:
         self.plugins: Dict[str, dict] = {}
         self.dependency_graph: Dict[str, Set[str]] = defaultdict(set)
         self.reverse_graph: Dict[str, Set[str]] = defaultdict(set)
+        self.load_errors: List[str] = []
     
     def load_plugins(self):
         """Load all plugin manifests from the plugins directory"""
-        if not self.plugins_dir.exists():
+        if not self.plugins_dir.is_dir():
+            self.load_errors.append(f"Plugin directory not found: {self.plugins_dir}")
             return
         
         for manifest_file in self.plugins_dir.glob('*.potion'):
             try:
-                with open(manifest_file, 'r') as f:
-                    manifest = yaml.safe_load(f)
-                    name = manifest.get('name')
-                    if name:
-                        self.plugins[name] = manifest
+                manifest = load_manifest(manifest_file)
+                errors = validate_manifest(
+                    manifest,
+                    Path(__file__).resolve().parents[1] / "schema" / "potion-manifest.schema.json",
+                    manifest_file,
+                )
+                if errors:
+                    self.load_errors.extend(f"{manifest_file}: {error}" for error in errors)
+                    continue
+                name = manifest['name']
+                if name in self.plugins:
+                    self.load_errors.append(f"Duplicate plugin name {name!r}: {manifest_file}")
+                    continue
+                self.plugins[name] = manifest
             except Exception as e:
-                print(f"Warning: Failed to load {manifest_file}: {e}", file=sys.stderr)
+                self.load_errors.append(f"Failed to load {manifest_file}: {e}")
     
     def build_dependency_graph(self):
         """Build dependency graph from loaded plugins"""
@@ -145,9 +156,14 @@ class DependencyResolver:
         name = manifest.get('name')
         dependencies = manifest.get('dependencies', [])
         
+        if not isinstance(dependencies, list):
+            return False, ["Dependencies must be a list"]
         for dep in dependencies:
+            if not isinstance(dep, dict):
+                errors.append("Invalid dependency: expected a mapping")
+                continue
             dep_name = dep.get('name')
-            if not dep_name:
+            if not isinstance(dep_name, str) or not dep_name:
                 errors.append(f"Invalid dependency: missing name")
                 continue
             
@@ -174,7 +190,7 @@ class DependencyResolver:
     
     def resolve_all_dependencies(self) -> Tuple[bool, List[str]]:
         """Resolve and validate all plugin dependencies"""
-        errors = []
+        errors = list(self.load_errors)
         
         # Detect circular dependencies
         cycles = self.detect_circular_dependencies()
@@ -207,8 +223,17 @@ def main():
     if manifest_file:
         # Validate single manifest
         try:
-            with open(manifest_file, 'r') as f:
-                manifest = yaml.safe_load(f)
+            if resolver.load_errors:
+                raise ValueError("catalog errors prevent dependency validation: " + "; ".join(resolver.load_errors))
+            manifest_path = Path(manifest_file)
+            manifest = load_manifest(manifest_path)
+            manifest_errors = validate_manifest(
+                manifest,
+                Path(__file__).resolve().parents[1] / "schema" / "potion-manifest.schema.json",
+                manifest_path,
+            )
+            if manifest_errors:
+                raise ValueError("; ".join(manifest_errors))
             
             valid, errors = resolver.validate_dependencies(manifest)
             if not valid:

@@ -49,7 +49,6 @@ fi
 if [ "$FILE_LIST" = "-" ]; then
     # Read from stdin
     while IFS= read -r file || [ -n "$file" ]; do
-        file=$(echo "$file" | xargs)  # Trim whitespace
         [ -z "$file" ] && continue
         if ! validate_file "$file"; then
             ERROR_COUNT=$((ERROR_COUNT + 1))
@@ -58,7 +57,6 @@ if [ "$FILE_LIST" = "-" ]; then
 elif [ -f "$FILE_LIST" ]; then
     # Read from file
     while IFS= read -r file || [ -n "$file" ]; do
-        file=$(echo "$file" | xargs)  # Trim whitespace
         [ -z "$file" ] && continue
         if ! validate_file "$file"; then
             ERROR_COUNT=$((ERROR_COUNT + 1))
