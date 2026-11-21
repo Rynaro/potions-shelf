@@ -3,8 +3,8 @@
 #
 # Usage: get-changed-files.sh [EVENT_NAME] [BASE_REF] [OUTPUT_FILE]
 #
-# This script detects changed manifest files based on the event type.
-# For pull requests, it uses git diff. For other events, it finds all manifest files.
+# This script detects changed registry manifests. Renames are reported at their
+# destination path by git diff --name-only. Deleted manifests are omitted.
 #
 # Environment variables (can override arguments):
 #   GITHUB_EVENT_NAME - The GitHub event name (pull_request, push, workflow_dispatch)
@@ -22,17 +22,40 @@ EVENT_NAME="${1:-${GITHUB_EVENT_NAME:-workflow_dispatch}}"
 BASE_REF="${2:-${GITHUB_BASE_REF:-main}}"
 OUTPUT_FILE="${3:-changed_files.txt}"
 
-# Determine changed files based on event type
-if [ "$EVENT_NAME" = "pull_request" ]; then
-    # For pull requests, use git diff
-    git diff --name-only "origin/${BASE_REF}...HEAD" | grep -E '\.(potion|yaml|yml)$' > "$OUTPUT_FILE" || true
-else
-    # For push or workflow_dispatch, find all manifest files
-    find plugins -name "*.potion" -o -name "*.yaml" -o -name "*.yml" > "$OUTPUT_FILE" || true
-fi
+# Use a temporary file so a failed diff never leaves a partial manifest list.
+temporary_file=$(mktemp)
+trap 'rm -f "$temporary_file"' EXIT
 
-# Ensure file exists (even if empty)
-touch "$OUTPUT_FILE"
+case "$EVENT_NAME" in
+    pull_request)
+        if ! git rev-parse --verify "origin/${BASE_REF}^{commit}" >/dev/null 2>&1; then
+            echo "Base ref is not available: $BASE_REF" >&2
+            exit 1
+        fi
+        git diff --name-only -z --diff-filter=ACMRT "origin/${BASE_REF}...HEAD" > "$temporary_file"
+        ;;
+    push)
+        if git rev-parse --verify 'HEAD^' >/dev/null 2>&1; then
+            git diff --name-only -z --diff-filter=ACMRT HEAD^ HEAD > "$temporary_file"
+        else
+            find plugins -type f -name '*.potion' -print0 > "$temporary_file"
+        fi
+        ;;
+    *)
+        find plugins -type f -name '*.potion' -print0 > "$temporary_file"
+        ;;
+esac
+
+: > "$OUTPUT_FILE"
+while IFS= read -r -d '' path; do
+    case "$path" in
+        plugins/*.potion)
+            if [ -f "$path" ]; then
+                printf '%s\n' "$path" >> "$OUTPUT_FILE"
+            fi
+            ;;
+    esac
+done < "$temporary_file"
 
 echo "✓ Found $(wc -l < "$OUTPUT_FILE" | tr -d ' ') changed manifest file(s)"
 echo "  Output: $OUTPUT_FILE"

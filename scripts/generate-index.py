@@ -1,115 +1,107 @@
 #!/usr/bin/env python3
-"""
-generate-index.py - Generates index.json from all plugin manifest files
+"""Generate the deterministic, line-searchable Potions Shelf index."""
 
-This script scans the plugins directory, reads all .potion manifest files,
-and generates a searchable index.json file for the registry.
-"""
+from __future__ import annotations
 
 import json
+import os
 import sys
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List
+import tempfile
 from collections import defaultdict
-import yaml
+from pathlib import Path
+
+from manifest_validation import load_manifest, validate_manifest
 
 
-def load_manifest(file_path: Path) -> Dict:
-    """Load and parse a manifest file"""
-    try:
-        with open(file_path, 'r') as f:
-            return yaml.safe_load(f)
-    except Exception as e:
-        print(f"Warning: Failed to load {file_path}: {e}", file=sys.stderr)
-        return None
-
-
-def generate_index(plugins_dir: Path, output_file: Path) -> bool:
-    """Generate index.json from all plugin manifests"""
-    if not plugins_dir.exists():
-        print(f"Error: Plugins directory not found: {plugins_dir}", file=sys.stderr)
-        return False
-    
+def generate_index(plugins_dir: Path, output_file: Path, schema_path: Path | None = None) -> None:
+    root = Path(__file__).resolve().parents[1]
+    schema_path = schema_path or root / "schema" / "potion-manifest.schema.json"
+    if plugins_dir.is_symlink():
+        raise ValueError(f"plugins directory must not be a symlink: {plugins_dir}")
+    if not plugins_dir.is_dir():
+        raise ValueError(f"plugins directory not found: {plugins_dir}")
+    manifest_files = sorted(plugins_dir.glob("*.potion"), key=lambda item: item.name)
+    unsupported = sorted([*plugins_dir.glob("*.yaml"), *plugins_dir.glob("*.yml")], key=lambda item: item.name)
+    misplaced = sorted(
+        item for item in plugins_dir.rglob("*")
+        if item.is_file() and item.suffix in {".potion", ".yaml", ".yml"} and item.parent != plugins_dir
+    )
     plugins = []
-    categories = defaultdict(list)
-    
-    # Load all manifest files
-    manifest_files = sorted(plugins_dir.glob('*.potion'))
-    
-    if not manifest_files:
-        print("Warning: No manifest files found in plugins directory", file=sys.stderr)
-    
-    for manifest_file in manifest_files:
-        manifest = load_manifest(manifest_file)
-        if not manifest:
-            continue
-        
-        # Extract plugin data
-        plugin_data = {
-            "name": manifest.get("name"),
-            "version": manifest.get("version"),
-            "description": manifest.get("description"),
-            "author": manifest.get("author"),
-            "repository": manifest.get("repository"),
-            "homepage": manifest.get("homepage"),
-            "license": manifest.get("license"),
-            "tags": manifest.get("tags", []),
-            "verified": manifest.get("verified", False),
-            "potionfile_path": manifest.get("potionfile_path", "Potionfile"),
-            "min_potions_version": manifest.get("min_potions_version"),
-            "max_potions_version": manifest.get("max_potions_version"),
-            "dependencies": manifest.get("dependencies", []),
-            "install": manifest.get("install", {"type": "git", "path": "/"}),
-        }
-        
-        # Remove None values
-        plugin_data = {k: v for k, v in plugin_data.items() if v is not None}
-        
-        plugins.append(plugin_data)
-        
-        # Build category index
-        for tag in manifest.get("tags", []):
-            categories[tag].append(manifest.get("name"))
-    
-    # Create index structure
-    index = {
-        "version": "1.0.0",
-        "last_updated": datetime.utcnow().isoformat() + "Z",
-        "total_plugins": len(plugins),
-        "plugins": sorted(plugins, key=lambda p: p.get("name", "")),
-        "categories": dict(sorted(categories.items())),
-    }
-    
-    # Write index file
-    try:
-        with open(output_file, 'w') as f:
-            json.dump(index, f, indent=2, ensure_ascii=False)
-        print(f"✓ Generated index with {len(plugins)} plugins")
-        print(f"  Categories: {len(categories)}")
-        print(f"  Output: {output_file}")
-        return True
-    except Exception as e:
-        print(f"Error: Failed to write index file: {e}", file=sys.stderr)
-        return False
+    errors = [f"{path}: catalog manifests must use the .potion extension" for path in unsupported]
+    errors.extend(f"{path}: manifest entries must be directly inside {plugins_dir}" for path in misplaced)
+    names: dict[str, Path] = {}
 
+    for manifest_path in manifest_files:
+        try:
+            manifest = load_manifest(manifest_path)
+            manifest_errors = validate_manifest(manifest, schema_path, manifest_path)
+            if manifest_errors:
+                errors.extend(f"{manifest_path}: {error}" for error in manifest_errors)
+                continue
+            name = manifest["name"]
+            if name in names:
+                errors.append(f"{manifest_path}: duplicate plugin name {name!r} also declared by {names[name]}")
+                continue
+            names[name] = manifest_path
+            entry = {
+                "name": name,
+                "version": manifest["version"],
+                "description": manifest["description"],
+                "author": manifest["author"],
+                "repository": manifest["repository"],
+            }
+            for field in ("homepage", "license", "tags", "min_potions_version", "potionfile_path"):
+                if field in manifest:
+                    entry[field] = manifest[field]
+            plugins.append(entry)
+        except Exception as exc:
+            errors.append(f"{manifest_path}: {exc}")
 
-def main():
-    """Main entry point"""
-    if len(sys.argv) < 3:
-        print("Usage: generate-index.py <plugins-dir> <output-file>", file=sys.stderr)
-        sys.exit(1)
-    
-    plugins_dir = Path(sys.argv[1])
-    output_file = Path(sys.argv[2])
-    
-    # Create output directory if it doesn't exist
+    if errors:
+        raise ValueError("Invalid catalog entries:\n" + "\n".join(f"  - {error}" for error in errors))
+
+    categories: dict[str, list[str]] = defaultdict(list)
+    for plugin in plugins:
+        for tag in plugin.get("tags", []):
+            categories[tag].append(plugin["name"])
+
+    # Keep each plugin object on one line. The installed Potions client uses
+    # line-oriented grep to return matching names from this index.
+    lines = ["{", '  "version": "1.0.0",', f'  "total_plugins": {len(plugins)},', '  "plugins": [']
+    for index, plugin in enumerate(plugins):
+        suffix = "," if index + 1 < len(plugins) else ""
+        lines.append("    " + json.dumps(plugin, ensure_ascii=False, sort_keys=True, separators=(",", ": ")) + suffix)
+    lines.extend(["  ],", '  "categories": {'])
+    category_items = sorted(categories.items())
+    for index, (tag, plugin_names) in enumerate(category_items):
+        suffix = "," if index + 1 < len(category_items) else ""
+        lines.append("    " + json.dumps(tag, ensure_ascii=False) + ": " + json.dumps(sorted(plugin_names), ensure_ascii=False) + suffix)
+    lines.extend(["  }", "}"])
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    success = generate_index(plugins_dir, output_file)
-    sys.exit(0 if success else 1)
+    temp_name = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=output_file.parent, delete=False) as temporary:
+            temp_name = temporary.name
+            temporary.write("\n".join(lines) + "\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temp_name, output_file)
+    finally:
+        if temp_name and os.path.exists(temp_name):
+            os.unlink(temp_name)
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("Usage: generate-index.py <plugins-dir> <output-file>", file=sys.stderr)
+        return 2
+    try:
+        generate_index(Path(sys.argv[1]), Path(sys.argv[2]))
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
-
+    raise SystemExit(main())
