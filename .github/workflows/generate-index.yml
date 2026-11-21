@@ -1,4 +1,4 @@
-name: Publish plugin index
+name: Verify published plugin index
 
 on:
   push:
@@ -19,19 +19,17 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   generate-index:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out current main branch
+      - name: Check out published catalog
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: main
-          fetch-depth: 0
-          token: ${{ github.token }}
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -64,16 +62,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Generate and publish current index
+      - name: Verify the published index
+        shell: bash
         run: |
           set -euo pipefail
-          python scripts/generate-index.py plugins index.json
-          git add -- index.json
-          if git diff --cached --quiet -- index.json; then
-            echo "Plugin index is already current"
-            exit 0
+          python scripts/generate-index.py plugins "$RUNNER_TEMP/expected-index.json"
+          if ! cmp -s index.json "$RUNNER_TEMP/expected-index.json"; then
+            echo "::error file=index.json::Published catalog index is stale. Submit a pull request with the regenerated index."
+            exit 1
           fi
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git commit -m "chore: update generated plugin index"
-          git push origin HEAD:main

@@ -152,6 +152,18 @@ def main() -> int:
         finally:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
+        if args.output is None:
+            # The index is reviewed and merged with the entry on protected main.
+            try:
+                subprocess.run(
+                    [sys.executable, str(Path(__file__).with_name("generate-index.py")),
+                     str(output_path.parent), str(output_path.parent.parent / "index.json")],
+                    check=True,
+                )
+            except subprocess.CalledProcessError:
+                output_path.unlink()
+                raise ValueError("index generation failed; the new entry was rolled back")
+            print(f"Updated {output_path.parent.parent / 'index.json'}")
         print(f"Created {output_path}")
     except (OSError, ValueError, subprocess.CalledProcessError, json.JSONDecodeError, yaml.YAMLError) as error:
         print(f"Error: {error}", file=sys.stderr)

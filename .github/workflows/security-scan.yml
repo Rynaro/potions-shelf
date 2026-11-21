@@ -2,13 +2,7 @@ name: Security triage
 
 on:
   pull_request:
-    paths:
-      - 'plugins/**'
-      - 'pending/**'
-      - 'scripts/**'
-      - 'schema/**'
-      - 'requirements.txt'
-      - '.github/workflows/**'
+  merge_group:
   schedule:
     - cron: '17 6 * * *'
   workflow_dispatch:

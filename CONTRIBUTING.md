@@ -13,7 +13,7 @@ Add one catalog manifest for a Potions plugin repository. Keep the entry small s
 
 ## Generate the catalog entry
 
-Set up the script dependencies in a virtual environment once, then run the helper with the published GitHub owner/repository. It reads your scaffold and creates `plugins/<name>.potion` for you.
+Set up the script dependencies in a virtual environment once, then run the helper with the published GitHub owner/repository. It reads your scaffold, creates `plugins/<name>.potion`, and updates `index.json` for the same pull request.
 
 ```sh
 python3 -m venv .venv
@@ -22,7 +22,7 @@ python -m pip install -r requirements.txt
 python scripts/create-entry.py ./my-plugin your-github-name/my-plugin@v0.1.0
 ```
 
-Omit `@v0.1.0` when you want installs to follow the repository default branch. Include it only when that release tag exists. The helper copies the Potions plugin name, version, description, author and optional license into catalog metadata, checks the generated entry against the catalog schema, and refuses to overwrite an existing file.
+Omit `@v0.1.0` when you want installs to follow the repository default branch. Include it only when that release tag exists. The helper copies the Potions plugin name, version, description, author and optional license into catalog metadata, checks the generated entry against the catalog schema, and refuses to overwrite an existing file. Commit the new entry and updated `index.json` together. With a custom `--output` destination, the helper writes only that manifest.
 
 A minimal catalog entry looks like this:
 
@@ -48,7 +48,13 @@ python3 -m pip install -r requirements.txt
 bash scripts/validate-manifest.sh plugins/my-plugin.potion
 ```
 
-The pull request workflow also validates changed manifests and checks the linked GitHub repository. Review any checks before requesting review.
+For updates or removals, edit the catalog manifest, regenerate the index, and include both in the pull request.
+
+```sh
+python scripts/generate-index.py plugins index.json
+```
+
+Every pull request runs catalog validation and security triage, including documentation changes. The merge queue runs the same checks. The `validate` job rejects a stale index; `verify-sources` checks every listed source. After merge, the publication workflow verifies the committed index with read-only permissions. Review the checks before requesting review.
 
 ## User trust and security
 

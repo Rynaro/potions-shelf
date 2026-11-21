@@ -46,7 +46,7 @@ Open a new shell and run `potions-hello`. Local installs link to your project, s
 
 1. Fork this repository and clone your fork next to your plugin checkout, so that `potions-shelf/` and `hello/` are siblings.
 2. From the root of your Shelf fork, run the commands below. Replace `OWNER` with the plugin’s GitHub owner. Include the tag only if you have published it. Omitting it selects the default branch.
-3. Commit the generated `plugins/<plugin-name>.potion` entry to a branch in your fork and open a pull request against this repository’s `main` branch. You can add descriptive tags to the entry. The Shelf generates the search index after merge.
+3. Commit the generated `plugins/<plugin-name>.potion` entry and `index.json` to a branch in your fork and open a pull request against this repository’s `main` branch. The helper updates both files. If you edit the entry afterward, regenerate the index with `python scripts/generate-index.py plugins index.json` before committing.
 
 ```sh
 python3 -m venv .venv

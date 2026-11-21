@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -172,6 +173,37 @@ class CatalogValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Invalid catalog"):
                 GENERATOR.generate_index(plugins, index)
             self.assertEqual(index.read_text(encoding="utf-8"), "previous\n")
+
+    def test_default_helper_commits_entry_and_index_together_or_rolls_back(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shelf = root / "shelf"
+            shutil.copytree(ROOT / "scripts", shelf / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(ROOT / "schema", shelf / "schema")
+            (shelf / "plugins").mkdir()
+            source = root / "plugin"
+            source.mkdir()
+            (source / "plugin.potions.json").write_text(json.dumps({
+                "name": "hello-world", "version": "1.2.3", "description": "A useful plugin example",
+                "author": "Example Author", "potions_min_version": "2.18.0",
+            }))
+            command = [sys.executable, str(shelf / "scripts/create-entry.py"), str(source),
+                       "example/hello-world@v1.2.3", "--reviewed-commit", "a" * 40]
+            completed = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            entry_path = shelf / "plugins/hello-world.potion"
+            self.assertTrue(entry_path.is_file())
+            index_path = shelf / "index.json"
+            index = json.loads(index_path.read_text())
+            self.assertEqual([item["name"] for item in index["plugins"]], ["hello-world"])
+            saved_index = index_path.read_bytes()
+            entry_path.unlink()
+            (shelf / "plugins/invalid.potion").write_text("name: invalid\n")
+            failed = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("rolled back", failed.stderr)
+            self.assertFalse(entry_path.exists())
+            self.assertEqual(index_path.read_bytes(), saved_index)
 
     def test_author_helper_creates_parser_compatible_tagged_entry_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

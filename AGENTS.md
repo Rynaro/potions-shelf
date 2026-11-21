@@ -11,7 +11,7 @@ Potions Shelf is a GitHub catalog of plugin metadata. Potions fetches plugin cod
 - Generate one catalog entry with `python scripts/create-entry.py ./my-plugin OWNER/my-plugin@vX.Y.Z` (after activating the documented virtual environment). Include `@vX.Y.Z` only for an existing release tag. Keep filename and name equal.
 - Never claim self-verification. An author-supplied checksum is not an independent trust check.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the manifest example and submission steps. The schema and validation scripts define accepted catalog fields. Workflows validate changes and generate searchable catalog metadata. Do not execute code from contributed plugin repositories in CI.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the manifest example and submission steps. The schema and validation scripts define accepted catalog fields. Commit the deterministic index with catalog changes. Required workflows validate every pull request and merge-queue candidate; the post-merge publisher only verifies the committed catalog. Do not execute code from contributed plugin repositories in CI.
 
 ## Compatibility
 
