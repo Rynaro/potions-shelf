@@ -12,7 +12,7 @@ potions plugin install OWNER/REPO@v1.2.3
 
 For a community plugin, Potions displays the resolved commit for approval. Review that revision before accepting. Its hooks and shell configuration run with your account permissions. A maintainer can move a tag, so check the commit again when updating.
 
-Open **Plugins** in Potions Desk or run `potions plugin` to manage what you have installed. Try the first package through catalog search and run its command in a new Zsh session.
+Open **Plugins** in Potions Desk or run `potions plugin` to manage what you have installed. Try the hello-world example through catalog search and run its command in a new Zsh session.
 
 ```sh
 potions plugin search shell
@@ -27,7 +27,16 @@ hello-world
 
 For a direct tagged installation, use `potions plugin install Rynaro/potions-plugin-hello-world@v1.0.0`. Potions displays the resolved commit for approval.
 
-The Shelf is community maintained. Anyone can propose an entry and join its public review. Users choose which plugin and revision to trust. The active catalog currently has one entry. The older Orchid record and its restoration steps are in [pending](pending/README.md).
+The `word-navigation` plugin adds Zsh word movement bindings for Ctrl+Left/Right and terminal-specific Alt+F/B sequences. Inspect it and install the standalone release from the Shelf, then open a new Zsh session.
+
+```sh
+potions plugin info word-navigation
+potions plugin install word-navigation
+```
+
+If Potions already manages a bundled copy, add `--force` to switch deliberately to the Shelf source. Replacement preserves its disabled state. [Word navigation source and usage](https://github.com/Rynaro/potions-word-navigation)
+
+The Shelf is community maintained. Anyone can propose an entry and join its public review. Users choose which plugin and revision to trust. The older Orchid record and its restoration steps are in [pending](pending/README.md).
 
 ## Build a plugin locally
 

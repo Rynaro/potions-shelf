@@ -1,0 +1,12 @@
+name: word-navigation
+version: 1.0.0
+description: Potions word navigation bindings for Zsh terminals
+author: Potions
+repository: https://github.com/Rynaro/potions-word-navigation@v1.0.0
+reviewed_commit: 3d83950787b283a768d3fa8904c6f9a950d9715d
+license: MIT
+tags:
+  - shell
+  - zsh
+  - navigation
+  - keyboard
