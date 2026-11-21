@@ -1,0 +1,9 @@
+name: plugin-hello-world
+version: 1.0.0
+description: A minimal hello-world command for Potions
+author: Potions Registry
+repository: https://github.com/Rynaro/potions-plugin-hello-world@v1.0.0
+license: MIT
+tags:
+  - shell
+  - example
