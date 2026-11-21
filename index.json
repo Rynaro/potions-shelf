@@ -1,8 +1,11 @@
 {
   "version": "1.0.0",
-  "total_plugins": 0,
+  "total_plugins": 1,
   "plugins": [
+    {"author": "Potions Registry","description": "A minimal hello-world command for Potions","license": "MIT","name": "plugin-hello-world","repository": "https://github.com/Rynaro/potions-plugin-hello-world@v1.0.0","tags": ["shell","example"],"version": "1.0.0"}
   ],
   "categories": {
+    "example": ["plugin-hello-world"],
+    "shell": ["plugin-hello-world"]
   }
 }

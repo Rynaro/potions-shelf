@@ -12,7 +12,22 @@ potions plugin install OWNER/REPO@v1.2.3
 
 For a community plugin, Potions displays the resolved commit for approval. Review that revision before accepting. Its hooks and shell configuration run with your account permissions. A maintainer can move a tag, so check the commit again when updating.
 
-Open **Plugins** in Potions Desk or run `potions plugin` to manage what you have installed. To discover catalog entries, run `potions plugin search shell`, then use `potions plugin info NAME` and `potions plugin install NAME` with a name from the results. The catalog currently has no active entries. Two older plugins need upstream changes before they can be listed again. [Pending entries and restoration steps](pending/README.md)
+Open **Plugins** in Potions Desk or run `potions plugin` to manage what you have installed. Try the first package through catalog search and run its command in a new Zsh session.
+
+```sh
+potions plugin search shell
+potions plugin install plugin-hello-world
+```
+
+Open a new Zsh session and run:
+
+```sh
+hello-world
+```
+
+For a direct tagged installation, use `potions plugin install Rynaro/potions-plugin-hello-world@v1.0.0`. Potions displays the resolved commit for approval.
+
+The Shelf is community maintained. Anyone can propose an entry and join its public review. Users choose which plugin and revision to trust. The active catalog currently has one entry. The older Orchid record and its restoration steps are in [pending](pending/README.md).
 
 ## Build a plugin locally
 
@@ -31,7 +46,7 @@ Open a new shell and run `potions-hello`. Local installs link to your project, s
 
 1. Fork this repository and clone your fork next to your plugin checkout, so that `potions-shelf/` and `hello/` are siblings.
 2. From the root of your Shelf fork, run the commands below. Replace `OWNER` with the plugin’s GitHub owner. Include the tag only if you have published it. Omitting it selects the default branch.
-3. Commit the generated `plugins/hello.potion` entry to a branch in your fork and open a pull request against this repository’s `main` branch. The Shelf generates the search index after merge.
+3. Commit the generated `plugins/<plugin-name>.potion` entry to a branch in your fork and open a pull request against this repository’s `main` branch. You can add descriptive tags to the entry. The Shelf generates the search index after merge.
 
 ```sh
 python3 -m venv .venv
