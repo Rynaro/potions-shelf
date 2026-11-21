@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+import requests
 
 import sys
 
@@ -109,6 +110,7 @@ class VerifyPluginSourcesTests(unittest.TestCase):
                     "description": "A demo plugin",
                     "author": "Acme",
                     "repository": repository,
+                    "reviewed_commit": COMMIT_SHA,
                 }
             ),
             encoding="utf-8",
@@ -160,6 +162,43 @@ class VerifyPluginSourcesTests(unittest.TestCase):
             changed_path.write_text(yaml.safe_dump(content))
             self.assertFalse(self.run_verification(changed, FakeSession()))
 
+    def test_moved_source_ref_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            changed = self.write_catalog_manifest(Path(directory))
+            manifest = Path(directory) / "plugins/demo.potion"
+            manifest.write_text(manifest.read_text().replace(COMMIT_SHA, "e" * 40))
+            evidence = []
+            current = Path.cwd()
+            try:
+                os.chdir(directory)
+                self.assertFalse(verify_plugin_sources.verify_changed_sources(str(changed), "", session=FakeSession(), report=evidence))
+            finally:
+                os.chdir(current)
+            self.assertEqual(evidence[0]["commit"], COMMIT_SHA)
+            self.assertEqual(evidence[0]["expected_commit"], "e" * 40)
+
+    def test_api_failure_fails_check_and_leaves_report_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            changed = self.write_catalog_manifest(Path(directory))
+            evidence = []
+            session = FakeSession()
+            with patch.object(session, "get", side_effect=requests.ConnectionError("offline")):
+                current = Path.cwd()
+                try:
+                    os.chdir(directory)
+                    result = verify_plugin_sources.verify_changed_sources(str(changed), "", session=session, report=evidence)
+                finally:
+                    os.chdir(current)
+            self.assertFalse(result)
+            self.assertFalse(evidence[0]["passed"])
+            self.assertIn("GitHub API request failed", evidence[0]["error"])
+
+    def test_scan_findings_block_a_valid_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            changed = self.write_catalog_manifest(Path(directory))
+            with patch.object(verify_plugin_sources, "scan_tree", return_value={"files_scanned": 1, "bytes_scanned": 10, "findings": [{"path": "config/init.zsh", "line": 1, "rule": "privilege-change", "message": "Review privileges."}]}):
+                self.assertFalse(self.run_verification(changed, FakeSession()))
+
     def test_deleted_manifest_is_skipped(self):
         with tempfile.TemporaryDirectory() as directory:
             changed = Path(directory) / "changed.txt"
@@ -193,15 +232,39 @@ class VerifyPluginSourcesTests(unittest.TestCase):
             with self.subTest(source=source), self.assertRaises(verify_plugin_sources.VerificationError):
                 verify_plugin_sources.load_source_yaml(source)
 
-    def test_command_line_accepts_changed_list_and_all_active_mode(self):
-        for arguments, expected_all in ((["verify-plugin-sources.py", "changed_files.txt"], False),
-                                        (["verify-plugin-sources.py", "--all"], True)):
-            with self.subTest(arguments=arguments), patch.object(sys, "argv", arguments), patch.object(
-                verify_plugin_sources, "verify_changed_sources", return_value=True
-            ) as verifier:
-                self.assertEqual(verify_plugin_sources.main(), 0)
-                verifier.assert_called_once()
-                self.assertEqual(verifier.call_args.kwargs["all_active"], expected_all)
+    def test_command_line_accepts_changed_list_without_touching_caller_report(self):
+        caller_report = Path.cwd() / "triage-report.json"
+        prior = caller_report.read_bytes() if caller_report.exists() else None
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "triage.json"
+            for arguments, expected_all in ((["verify-plugin-sources.py", "changed_files.txt"], False),
+                                            (["verify-plugin-sources.py", "--all"], True)):
+                arguments += ["--report", str(report)]
+                with self.subTest(arguments=arguments), patch.object(sys, "argv", arguments), patch.object(
+                    verify_plugin_sources, "verify_changed_sources", return_value=True
+                ) as verifier:
+                    self.assertEqual(verify_plugin_sources.main(), 0)
+                    verifier.assert_called_once()
+                    self.assertEqual(verifier.call_args.kwargs["all_active"], expected_all)
+                    self.assertTrue(json.loads(report.read_text())["passed"])
+        self.assertEqual(caller_report.read_bytes() if caller_report.exists() else None, prior)
+
+    def test_failed_or_interrupted_verification_replaces_prior_passing_report(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "triage.json"
+            arguments = ["verify-plugin-sources.py", "--all", "--report", str(report)]
+            for raised_error in (None, RuntimeError("interrupted API response")):
+                with self.subTest(raised_error=raised_error):
+                    report.write_text('{"passed": true, "packages": []}\n')
+                    with patch.object(sys, "argv", arguments), patch.object(
+                        verify_plugin_sources, "verify_changed_sources", return_value=False, side_effect=raised_error
+                    ):
+                        if raised_error is not None:
+                            with self.assertRaises(RuntimeError):
+                                verify_plugin_sources.main()
+                        else:
+                            self.assertEqual(verify_plugin_sources.main(), 1)
+                    self.assertFalse(json.loads(report.read_text())["passed"])
 
     def test_changed_file_script_keeps_rename_destination_and_skips_deletion(self):
         script = Path(__file__).resolve().parents[1] / "get-changed-files.sh"

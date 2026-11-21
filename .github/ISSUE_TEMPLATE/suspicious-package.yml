@@ -1,0 +1,32 @@
+name: Suspicious registry package
+description: Report a listed plugin whose behavior or metadata needs security review.
+title: "[Package security] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For credentials, personal data, a working exploit, or information that could put users at risk, use [private vulnerability reporting](https://github.com/Rynaro/potions-shelf/security/advisories/new).
+        Keep this public report to nonsensitive facts. You do not need to run suspicious code to report it.
+  - type: input
+    id: package
+    attributes:
+      label: Shelf package name
+      placeholder: plugin-hello-world
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Repository and commit or tag
+      description: Include the installed commit from Potionfile.lock or the affected catalog entry when available.
+  - type: textarea
+    id: concern
+    attributes:
+      label: What looks suspicious?
+      description: Describe the unexpected behavior or source location. Exclude secrets, personal files, and working exploit code.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Potions version and operating system

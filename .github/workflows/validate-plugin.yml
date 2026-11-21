@@ -2,14 +2,7 @@ name: Validate plugin catalog
 
 on:
   pull_request:
-    paths:
-      - 'plugins/**'
-      - 'pending/**'
-      - 'schema/**'
-      - 'scripts/**'
-      - 'requirements.txt'
-      - '.github/workflows/**'
-      - 'index.json'
+  merge_group:
   workflow_dispatch:
 
 permissions:
@@ -36,13 +29,7 @@ jobs:
       - name: Run offline catalog and source verifier tests
         run: |
           python scripts/test-catalog.py
-          python -m unittest scripts.tests.test_verify_plugin_sources -v
-
-      - name: Find changed manifests
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-        run: ./scripts/get-changed-files.sh "$EVENT_NAME" "$BASE_REF" changed_files.txt
+          python -m unittest discover -s scripts/tests -v
 
       - name: Validate every active catalog entry
         shell: bash
@@ -55,18 +42,12 @@ jobs:
       - name: Validate dependency graph
         run: python scripts/dependency-resolver.py plugins/
 
-      - name: Generate candidate index and check any edited index
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
+      - name: Require the committed index to match catalog entries
+        shell: bash
         run: |
           set -euo pipefail
           python scripts/generate-index.py plugins "$RUNNER_TEMP/expected-index.json"
-          if git diff --quiet "origin/$BASE_REF...HEAD" -- index.json; then
-            echo "Candidate index generated successfully"
-            exit 0
-          fi
           if ! cmp -s index.json "$RUNNER_TEMP/expected-index.json"; then
-            echo "::error file=index.json::Edited index.json does not match the catalog manifests. Generate it with the documented command."
+            echo "::error file=index.json::Regenerate index.json with python scripts/generate-index.py plugins index.json and commit it with the catalog change."
             exit 1
           fi

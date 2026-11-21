@@ -46,7 +46,7 @@ Open a new shell and run `potions-hello`. Local installs link to your project, s
 
 1. Fork this repository and clone your fork next to your plugin checkout, so that `potions-shelf/` and `hello/` are siblings.
 2. From the root of your Shelf fork, run the commands below. Replace `OWNER` with the plugin’s GitHub owner. Include the tag only if you have published it. Omitting it selects the default branch.
-3. Commit the generated `plugins/<plugin-name>.potion` entry to a branch in your fork and open a pull request against this repository’s `main` branch. You can add descriptive tags to the entry. The Shelf generates the search index after merge.
+3. Commit the generated `plugins/<plugin-name>.potion` entry and `index.json` to a branch in your fork and open a pull request against this repository’s `main` branch. The helper updates both files. If you edit the entry afterward, regenerate the index with `python scripts/generate-index.py plugins index.json` before committing.
 
 ```sh
 python3 -m venv .venv
@@ -56,8 +56,16 @@ python scripts/create-entry.py ../hello OWNER/hello@v1.2.3
 ./scripts/validate-manifest.sh plugins/hello.potion
 ```
 
-The helper copies the metadata from your plugin. CI checks the entry against the public repository, reads the plugin manifest at the selected commit, and compares the name and version. It inspects files without executing the plugin. Maintainers review the proposed entry, the source, and the results. [Contribution guide](CONTRIBUTING.md)
+The helper copies the metadata from your plugin and records its checkout HEAD as `reviewed_commit`, the exact revision submitted for triage. Publish that commit before submitting. For a checkout copy without Git metadata, pass `--reviewed-commit FULL_SHA`. CI checks the entry against the public repository, reads the plugin manifest at the selected commit, and compares the name and version. It inspects files without executing the plugin. Maintainers review the proposed entry, the source, and the results. [Contribution guide](CONTRIBUTING.md)
 
 ## Take part in review
 
 Anyone can comment on an open submission. If you tried a plugin, include the operating system, Potions version, and plugin revision you tested. Report missing or incorrect catalog information on the Shelf. For a bug in the plugin’s behavior, use the plugin repository’s issue tracker. [Open submissions](https://github.com/Rynaro/potions-shelf/pulls) · [Shelf issues](https://github.com/Rynaro/potions-shelf/issues)
+
+## Security and suspicious packages
+
+Shelf maintainers make a best-effort assessment of listed plugin sources to reduce the risk of malicious code reaching users. CI checks the recorded commit, inspects source files, and pauses listings that need security review. Reviews and static scans can miss harmful behavior. Plugin code runs with your account permissions.
+
+The registry's triage covers its listed sources and revisions. Authors and users are responsible for independently distributed plugins installed directly from GitHub, local paths, or other catalogs. Shelf maintainers do not accept responsibility for the security or behavior of those installations.
+
+Report any suspicious listed package. Use [private vulnerability reporting](https://github.com/Rynaro/potions-shelf/security/advisories/new) for sensitive details, or the [public package report form](https://github.com/Rynaro/potions-shelf/issues/new?template=suspicious-package.yml) for nonsensitive concerns. If you have already installed it, follow the clean-shell containment instructions in the [security policy](SECURITY.md) before running lifecycle hooks.

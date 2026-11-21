@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,7 @@ def manifest_text(name: str = "hello-world", repository: str | None = None) -> s
         "description: A small example plugin\n"
         "author: Example Author\n"
         f"repository: {repository}\n"
+        'reviewed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n'
         "tags:\n  - example\n"
         "dependencies:\n  - name: helper-plugin\n    version: '>=1.0.0'\n"
     )
@@ -60,6 +62,11 @@ class CatalogValidationTests(unittest.TestCase):
         ):
             with self.subTest(repository=repository):
                 self.assertTrue(self.validate_text(manifest_text(repository=repository)))
+
+    def test_reviewed_commit_is_required_and_literal(self) -> None:
+        for replacement in ("", "reviewed_commit: abc\n", 'reviewed_commit: "' + "A" * 40 + '"\n'):
+            source = manifest_text().replace('reviewed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n', replacement)
+            self.assertTrue(self.validate_text(source))
 
     def test_repository_identity_is_case_sensitive_for_install_name(self) -> None:
         errors = self.validate_text(manifest_text(repository="https://github.com/example/Hello-World"))
@@ -167,6 +174,37 @@ class CatalogValidationTests(unittest.TestCase):
                 GENERATOR.generate_index(plugins, index)
             self.assertEqual(index.read_text(encoding="utf-8"), "previous\n")
 
+    def test_default_helper_commits_entry_and_index_together_or_rolls_back(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shelf = root / "shelf"
+            shutil.copytree(ROOT / "scripts", shelf / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+            shutil.copytree(ROOT / "schema", shelf / "schema")
+            (shelf / "plugins").mkdir()
+            source = root / "plugin"
+            source.mkdir()
+            (source / "plugin.potions.json").write_text(json.dumps({
+                "name": "hello-world", "version": "1.2.3", "description": "A useful plugin example",
+                "author": "Example Author", "potions_min_version": "2.18.0",
+            }))
+            command = [sys.executable, str(shelf / "scripts/create-entry.py"), str(source),
+                       "example/hello-world@v1.2.3", "--reviewed-commit", "a" * 40]
+            completed = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            entry_path = shelf / "plugins/hello-world.potion"
+            self.assertTrue(entry_path.is_file())
+            index_path = shelf / "index.json"
+            index = json.loads(index_path.read_text())
+            self.assertEqual([item["name"] for item in index["plugins"]], ["hello-world"])
+            saved_index = index_path.read_bytes()
+            entry_path.unlink()
+            (shelf / "plugins/invalid.potion").write_text("name: invalid\n")
+            failed = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("rolled back", failed.stderr)
+            self.assertFalse(entry_path.exists())
+            self.assertEqual(index_path.read_bytes(), saved_index)
+
     def test_author_helper_creates_parser_compatible_tagged_entry_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -187,7 +225,7 @@ class CatalogValidationTests(unittest.TestCase):
             output = output_dir / "hello-world.potion"
             helper = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world@v1.2.3", "--output", str(output)],
+                 "example/hello-world@v1.2.3", "--reviewed-commit", "a" * 40, "--output", str(output)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -199,7 +237,7 @@ class CatalogValidationTests(unittest.TestCase):
             self.assertEqual(validate_manifest(entry, SCHEMA, output), [])
             overwrite = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world", "--output", str(output)],
+                 "example/hello-world", "--reviewed-commit", "a" * 40, "--output", str(output)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -209,7 +247,7 @@ class CatalogValidationTests(unittest.TestCase):
 
             wrong_extension = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world", "--output", str(output_dir / "hello-world.yaml")],
+                 "example/hello-world", "--reviewed-commit", "a" * 40, "--output", str(output_dir / "hello-world.yaml")],
                 capture_output=True,
                 text=True,
                 check=False,
