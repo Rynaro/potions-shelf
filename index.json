@@ -1,11 +1,15 @@
 {
   "version": "1.0.0",
-  "total_plugins": 1,
+  "total_plugins": 2,
   "plugins": [
-    {"author": "Potions Registry","description": "A minimal hello-world command for Potions","license": "MIT","name": "plugin-hello-world","repository": "https://github.com/Rynaro/potions-plugin-hello-world@v1.0.0","reviewed_commit": "919f9d6cb62c9d67292460bf336d24853a32baf7","tags": ["shell","example"],"version": "1.0.0"}
+    {"author": "Potions Registry","description": "A minimal hello-world command for Potions","license": "MIT","name": "plugin-hello-world","repository": "https://github.com/Rynaro/potions-plugin-hello-world@v1.0.0","reviewed_commit": "919f9d6cb62c9d67292460bf336d24853a32baf7","tags": ["shell","example"],"version": "1.0.0"},
+    {"author": "Potions","description": "Potions word navigation bindings for Zsh terminals","license": "MIT","name": "word-navigation","repository": "https://github.com/Rynaro/potions-word-navigation@v1.0.0","reviewed_commit": "3d83950787b283a768d3fa8904c6f9a950d9715d","tags": ["shell","zsh","navigation","keyboard"],"version": "1.0.0"}
   ],
   "categories": {
     "example": ["plugin-hello-world"],
-    "shell": ["plugin-hello-world"]
+    "keyboard": ["word-navigation"],
+    "navigation": ["word-navigation"],
+    "shell": ["plugin-hello-world", "word-navigation"],
+    "zsh": ["word-navigation"]
   }
 }
