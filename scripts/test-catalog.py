@@ -31,6 +31,7 @@ def manifest_text(name: str = "hello-world", repository: str | None = None) -> s
         "description: A small example plugin\n"
         "author: Example Author\n"
         f"repository: {repository}\n"
+        'reviewed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n'
         "tags:\n  - example\n"
         "dependencies:\n  - name: helper-plugin\n    version: '>=1.0.0'\n"
     )
@@ -60,6 +61,11 @@ class CatalogValidationTests(unittest.TestCase):
         ):
             with self.subTest(repository=repository):
                 self.assertTrue(self.validate_text(manifest_text(repository=repository)))
+
+    def test_reviewed_commit_is_required_and_literal(self) -> None:
+        for replacement in ("", "reviewed_commit: abc\n", 'reviewed_commit: "' + "A" * 40 + '"\n'):
+            source = manifest_text().replace('reviewed_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"\n', replacement)
+            self.assertTrue(self.validate_text(source))
 
     def test_repository_identity_is_case_sensitive_for_install_name(self) -> None:
         errors = self.validate_text(manifest_text(repository="https://github.com/example/Hello-World"))
@@ -187,7 +193,7 @@ class CatalogValidationTests(unittest.TestCase):
             output = output_dir / "hello-world.potion"
             helper = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world@v1.2.3", "--output", str(output)],
+                 "example/hello-world@v1.2.3", "--reviewed-commit", "a" * 40, "--output", str(output)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -199,7 +205,7 @@ class CatalogValidationTests(unittest.TestCase):
             self.assertEqual(validate_manifest(entry, SCHEMA, output), [])
             overwrite = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world", "--output", str(output)],
+                 "example/hello-world", "--reviewed-commit", "a" * 40, "--output", str(output)],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -209,7 +215,7 @@ class CatalogValidationTests(unittest.TestCase):
 
             wrong_extension = subprocess.run(
                 [sys.executable, str(ROOT / "scripts" / "create-entry.py"), str(source),
-                 "example/hello-world", "--output", str(output_dir / "hello-world.yaml")],
+                 "example/hello-world", "--reviewed-commit", "a" * 40, "--output", str(output_dir / "hello-world.yaml")],
                 capture_output=True,
                 text=True,
                 check=False,

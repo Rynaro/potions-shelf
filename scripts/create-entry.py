@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 import sys
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -50,6 +51,7 @@ def main() -> int:
     )
     parser.add_argument("plugin_dir", type=Path, help="Directory created by potions plugin create")
     parser.add_argument("repository", help="GitHub owner/repository, optionally followed by @v1.2.3")
+    parser.add_argument("--reviewed-commit", help="Exact source commit to submit for triage; defaults to the plugin checkout HEAD")
     parser.add_argument("--output", type=Path, help="Override the default plugins/<name>.potion destination")
     args = parser.parse_args()
 
@@ -75,12 +77,26 @@ def main() -> int:
             if not isinstance(manifest.get(field), str) or not manifest[field].strip():
                 raise ValueError(f"plugin manifest needs a non-empty string field {field!r}")
 
+        reviewed_commit = args.reviewed_commit
+        if reviewed_commit is None:
+            checkout_root = subprocess.check_output(
+                ["git", "-C", str(args.plugin_dir), "rev-parse", "--show-toplevel"], text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            if Path(checkout_root).resolve() != args.plugin_dir.resolve():
+                raise ValueError("plugin must be its own Git checkout, or supply --reviewed-commit")
+            reviewed_commit = subprocess.check_output(
+                ["git", "-C", str(args.plugin_dir), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+            ).strip()
+        if not re.fullmatch(r"[0-9a-f]{40}", reviewed_commit):
+            raise ValueError("reviewed commit must be a full 40-character lowercase Git SHA")
+
         entry = {
             "name": name,
             "version": manifest["version"],
             "description": manifest["description"],
             "author": manifest["author"],
             "repository": repository_url + (f"@{release_tag}" if release_tag else ""),
+            "reviewed_commit": reviewed_commit,
         }
         if isinstance(manifest.get("license"), str) and manifest["license"].strip():
             entry["license"] = manifest["license"]
@@ -137,7 +153,7 @@ def main() -> int:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
         print(f"Created {output_path}")
-    except (OSError, ValueError, json.JSONDecodeError, yaml.YAMLError) as error:
+    except (OSError, ValueError, subprocess.CalledProcessError, json.JSONDecodeError, yaml.YAMLError) as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1
     return 0

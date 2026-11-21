@@ -75,7 +75,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
 
 def validate_cli_literals(path: Path, manifest: dict[str, Any]) -> list[str]:
     """Ensure Bash's line-based catalog parser sees the same top-level values."""
-    fields = ("name", "version", "description", "author", "repository", "license")
+    fields = ("name", "version", "description", "author", "repository", "license", "reviewed_commit")
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:

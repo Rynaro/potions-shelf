@@ -27,3 +27,6 @@ test-index.json
 # Local development
 .local/
 
+
+# Local security triage evidence
+triage-report.json

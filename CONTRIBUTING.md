@@ -59,3 +59,15 @@ Plugin setup hooks execute with the user's account permissions. Keep them short 
 ## Pull request review
 
 A submission should have one clear owner, a reachable repository, a matching plugin name, accurate metadata, and code that works with the current Potions plugin format. The maintainer review considers the source and its installation behavior. Automated scans are aids for review and cannot establish that arbitrary shell code is harmless.
+
+## Security triage
+
+Every active entry requires `reviewed_commit`, a full lowercase 40-character Git SHA identifying the published source to assess. The helper uses the plugin checkout's HEAD by default, or accepts `--reviewed-commit FULL_SHA`. For a tag, this must be the commit it resolves to. Publishing a changed revision requires a new entry revision and fresh triage.
+
+Run the same bounded, read-only source checks locally after publishing the source.
+
+```sh
+python scripts/verify-plugin-sources.py --all --report triage-report.json
+```
+
+The command exits unsuccessfully for moved refs, API failures, unsupported content, exceeded limits, and sensitive behavior requiring review. Inspect the JSON report's source commit, rule, file, and line. It contains no contributed code. Findings need source remediation or an improvement to the checks reviewed by maintainers. Catalog metadata cannot disable a rule. The [security policy](SECURITY.md) describes source review, incident reporting, quarantine, and restoration.

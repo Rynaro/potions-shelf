@@ -8,17 +8,20 @@ plugin manifest format supported by Potions, and symlink-free tracked files.
 
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
 import requests
 import yaml
+from source_triage import scan_tree
 from manifest_validation import NAME_RE, VERSION_RE, UniqueKeyLoader, load_manifest, split_repository_spec, validate_repository_url
 
 
@@ -139,6 +142,7 @@ def load_source_manifest(
     base: str,
     tree: list[dict[str, Any]],
     token: str,
+    blob_cache: dict | None = None,
 ) -> tuple[str, str]:
     entries = {entry.get("path"): entry for entry in tree if isinstance(entry.get("path"), str)}
     manifest_path = next((path for path in (".potion", "plugin.potions.json") if path in entries), None)
@@ -159,6 +163,8 @@ def load_source_manifest(
         raise VerificationError("source manifest has an invalid Git blob identifier")
 
     blob = github_json(session, f"{base}/git/blobs/{blob_sha}", token)
+    if blob_cache is not None:
+        blob_cache[blob_sha] = blob
     encoded = blob.get("content")
     if not isinstance(encoded, str):
         raise VerificationError("source manifest is missing or too large")
@@ -230,7 +236,8 @@ def unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def verify_repository(
-    session: requests.Session, repository_url: str, token: str
+    session: requests.Session, repository_url: str, token: str,
+    *, report: dict | None = None,
 ) -> tuple[str, str, str]:
     owner, repository, tag = parse_repository(repository_url)
     base = f"{API_ROOT}/repos/{quote(owner, safe='')}/{quote(repository, safe='')}"
@@ -260,7 +267,23 @@ def verify_repository(
         if item.get("mode") == "120000" or item.get("type") == "commit":
             raise VerificationError("source tree contains a symlink or submodule unsupported by Potions")
 
-    plugin_name, version = load_source_manifest(session, base, entries, token)
+    blob_cache = {}
+    plugin_name, version = load_source_manifest(session, base, entries, token, blob_cache)
+
+    def fetch_blob(sha: str) -> dict:
+        if sha not in blob_cache:
+            blob_cache[sha] = github_json(session, f"{base}/git/blobs/{sha}", token)
+        return blob_cache[sha]
+
+    if report is not None:
+        report.update({"repository": repository_url, "commit": commit_sha})
+    triage = scan_tree(entries, fetch_blob)
+    if report is not None:
+        report.update(triage)
+    if triage["findings"]:
+        for item in triage["findings"]:
+            print(json.dumps(item, ensure_ascii=True), file=sys.stderr)
+        raise VerificationError("source requires security triage; remove risky or uninspectable content before listing")
     print(f"Verified source https://github.com/{owner}/{repository}@{commit_sha} ({plugin_name} {version})")
     return commit_sha, plugin_name, version
 
@@ -304,7 +327,7 @@ def all_active_manifest_paths() -> list[Path]:
 
 
 def verify_changed_sources(file_list: str, token: str, *, all_active: bool = False,
-                           session: requests.Session | None = None) -> bool:
+                           session: requests.Session | None = None, report: list | None = None) -> bool:
     try:
         paths = all_active_manifest_paths() if all_active else changed_manifest_paths(file_list)
         if not paths:
@@ -314,6 +337,9 @@ def verify_changed_sources(file_list: str, token: str, *, all_active: bool = Fal
         errors: list[str] = []
         verified_sources: dict[str, tuple[str, str, str]] = {}
         for path in paths:
+            evidence = {"manifest": str(path)}
+            if report is not None:
+                report.append(evidence)
             try:
                 catalog_manifest = load_manifest(path)
                 repository_url = catalog_manifest.get("repository")
@@ -321,14 +347,22 @@ def verify_changed_sources(file_list: str, token: str, *, all_active: bool = Fal
                     raise VerificationError("catalog manifest is missing a repository URL")
                 owner, repository, tag = parse_repository(repository_url)
                 source_key = f"{owner.lower()}/{repository.lower()}@{tag or ''}"
+                expected_commit = catalog_manifest.get("reviewed_commit")
+                if not isinstance(expected_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", expected_commit):
+                    raise VerificationError("catalog requires reviewed_commit containing a 40-character lowercase Git SHA")
                 if source_key not in verified_sources:
-                    verified_sources[source_key] = verify_repository(client, repository_url, token)
-                _, source_name, source_version = verified_sources[source_key]
+                    evidence.update({"package": catalog_manifest.get("name"), "repository": repository_url, "expected_commit": expected_commit})
+                    verified_sources[source_key] = verify_repository(client, repository_url, token, report=evidence)
+                source_commit, source_name, source_version = verified_sources[source_key]
+                if source_commit != expected_commit:
+                    raise VerificationError("source ref moved from reviewed_commit; submit the new revision for fresh triage")
                 if source_name != catalog_manifest.get("name"):
                     raise VerificationError("catalog name does not match the plugin manifest at the resolved source commit")
                 if source_version != catalog_manifest.get("version"):
                     raise VerificationError("catalog version does not match the plugin manifest at the resolved source commit")
-            except (OSError, UnicodeError, yaml.YAMLError, VerificationError) as error:
+                evidence["passed"] = True
+            except (OSError, ValueError, UnicodeError, yaml.YAMLError, VerificationError) as error:
+                evidence.update({"passed": False, "error": str(error)})
                 errors.append(f"{path}: {error}")
 
         if errors:
@@ -338,19 +372,43 @@ def verify_changed_sources(file_list: str, token: str, *, all_active: bool = Fal
             return False
         return True
     except VerificationError as error:
+        if report is not None:
+            report.append({"passed": False, "error": str(error)})
         print(f"Source verification failed: {error}", file=sys.stderr)
         return False
 
 
+def write_report(path: Path, passed: bool, evidence: list) -> None:
+    """Replace evidence atomically so readers never consume a partial report."""
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as output:
+            temporary_path = Path(output.name)
+            json.dump({"passed": passed, "packages": evidence}, output, indent=2, ensure_ascii=True)
+            output.write("\n")
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
 def main() -> int:
-    all_active = len(sys.argv) == 2 and sys.argv[1] == "--all"
-    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1].startswith("--") and not all_active):
-        print("Usage: verify-plugin-sources.py [--all | changed-files.txt]", file=sys.stderr)
-        return 2
-    file_list = "changed_files.txt" if all_active or len(sys.argv) == 1 else sys.argv[1]
-    if not verify_changed_sources(file_list, os.environ.get("GITHUB_TOKEN", ""), all_active=all_active):
-        return 1
-    return 0
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("file_list", nargs="?", default="changed_files.txt")
+    parser.add_argument("--all", action="store_true", dest="all_active")
+    parser.add_argument("--report", type=Path, default=Path("triage-report.json"))
+    args = parser.parse_args()
+    evidence = []
+    passed = False
+    # Invalidate earlier success before any API work, including interrupted runs.
+    write_report(args.report, passed, evidence)
+    try:
+        passed = verify_changed_sources(
+            args.file_list, os.environ.get("GITHUB_TOKEN", ""), all_active=args.all_active, report=evidence
+        )
+    finally:
+        write_report(args.report, passed, evidence)
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

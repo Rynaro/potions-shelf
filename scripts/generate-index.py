@@ -49,6 +49,7 @@ def generate_index(plugins_dir: Path, output_file: Path, schema_path: Path | Non
                 "description": manifest["description"],
                 "author": manifest["author"],
                 "repository": manifest["repository"],
+                "reviewed_commit": manifest["reviewed_commit"],
             }
             for field in ("homepage", "license", "tags", "min_potions_version", "potionfile_path"):
                 if field in manifest:

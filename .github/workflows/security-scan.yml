@@ -1,14 +1,16 @@
-name: Verify plugin sources
+name: Security triage
 
 on:
   pull_request:
     paths:
       - 'plugins/**'
       - 'pending/**'
-      - 'scripts/verify-plugin-sources.py'
-      - 'scripts/manifest_validation.py'
+      - 'scripts/**'
+      - 'schema/**'
       - 'requirements.txt'
       - '.github/workflows/**'
+  schedule:
+    - cron: '17 6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -22,7 +24,6 @@ jobs:
       - name: Check out catalog
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python
@@ -33,21 +34,16 @@ jobs:
       - name: Install validation dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Find changed manifests
-        if: github.event_name == 'pull_request'
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-        run: ./scripts/get-changed-files.sh "$EVENT_NAME" "$BASE_REF" changed_files.txt
-
-      - name: Verify every active source after publication
-        if: github.event_name != 'pull_request'
+      - name: Triage every listed source at its recorded commit
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/verify-plugin-sources.py --all
+        run: python scripts/verify-plugin-sources.py --all --report triage-report.json
 
-      - name: Verify changed sources before merge
-        if: github.event_name == 'pull_request'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/verify-plugin-sources.py changed_files.txt
+      - name: Preserve triage evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-triage-${{ github.run_id }}
+          path: triage-report.json
+          if-no-files-found: error
+          retention-days: 30

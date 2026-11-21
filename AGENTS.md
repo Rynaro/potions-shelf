@@ -16,3 +16,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the manifest example and submission s
 ## Compatibility
 
 The consumer is the current Potions plugin manager. Its required plugin fields are `name`, `version`, `description`, `author`, and `potions_min_version` in the plugin's own manifest. Shell configuration is read from `config/*.zsh` and `config/*.sh`. Setup hooks are optional. The Shelf `.potion` file is catalog metadata and is distinct from a plugin repository's manifest.
+
+## Security triage contract
+
+Active catalog entries require `reviewed_commit`, a full lowercase Git SHA. The source verifier resolves refs, checks this SHA, and performs bounded static source triage without execution. Keep checks fail closed on unsupported content and scan budgets. New source revisions need fresh triage. Never fabricate human approvals or suppress findings with contributor metadata. Use SECURITY.md for reporting and no-hook incident containment.
